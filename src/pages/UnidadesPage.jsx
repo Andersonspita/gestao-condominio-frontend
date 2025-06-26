@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { getUnidades, createUnidade, updateUnidade, ativarUnidade, inativarUnidade } from '../api/unidadeService';
 import Modal from '../components/ui/Modal';
+import { formatStatus } from '../utils/formatters';
 import './Page.css';
 
 const UnidadesPage = () => {
@@ -153,7 +154,7 @@ const UnidadesPage = () => {
                                     <td>{unidade.uniNumero}</td>
                                     <td>{unidade.condominio.conNome} (ID: {unidade.condominio.conCod})</td>
                                     <td>{unidade.uniValorTaxaCondominio.toFixed(2)}</td>
-                                    <td>{unidade.uniStatusOcupacao}</td>
+                                    <td>{formatStatus(unidade.uniStatusOcupacao)}</td>
                                     <td>{unidade.uniAtiva ? 'Sim' : 'Não'}</td>
                                     <td className="actions-cell">
                                         <button onClick={() => handleEdit(unidade)} className="btn-edit">Editar</button>

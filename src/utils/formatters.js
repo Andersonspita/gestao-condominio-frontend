@@ -20,3 +20,12 @@ export const maskCpfCnpj = (doc) => {
     // Se não for nem CPF nem CNPJ, retorna o valor original
     return doc;
 };
+
+export const formatStatus = (statusString) => {
+    if (!statusString) return 'N/A'; // Retorna N/A se o status for nulo
+
+    return statusString
+        .replace(/_/g, ' ') // 1. Substitui todos os underscores por espaços
+        .toLowerCase()       // 2. Converte todo o texto para minúsculas
+        .replace(/^\w/, (c) => c.toUpperCase()); // 3. Capitaliza a primeira letra
+};
