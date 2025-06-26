@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { getCobrancas, createCobranca, cancelarCobranca, gerarCobrancasEmLote, getTiposCobranca, createTipoCobranca } from '../../api/financeiroService';
 import Modal from '../../components/ui/Modal';
+import { formatStatus } from '../../utils/formatters';
 import '../Page.css';
 
 const FinanceiroPage = () => {
