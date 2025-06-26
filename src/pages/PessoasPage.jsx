@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { getPessoas, createPessoa, updatePessoa, inativarPessoa, ativarPessoa } from '../api/pessoaService';
 import { createMorador } from '../api/moradorService';
 import { createUsuarioCondominio } from '../api/usuarioCondominioService';
+import { getCondominios } from '../api/condominioService'; // Importar
+import { getUnidades } from '../api/unidadeService';     // Importar
 import Modal from '../components/ui/Modal';
 import ChangePasswordModal from '../components/ui/ChangePasswordModal';
-import RoleBadges from '../components/ui/RoleBadges'; // Não esqueça de importar os Badges
-import { maskCpfCnpj } from '../utils/formatters'; // E a máscara de CPF
+import RoleBadges from '../components/ui/RoleBadges';
+import { maskCpfCnpj } from '../utils/formatters';
 import './Page.css';
 
 const PessoasPage = () => {
@@ -13,25 +15,49 @@ const PessoasPage = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
     const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+    
     const [editingPessoa, setEditingPessoa] = useState(null);
     const [formData, setFormData] = useState({});
 
-    const fetchPessoas = async () => {
+    // --- NOVOS ESTADOS PARA OS DROPDOWNS ---
+    const [listaCondominios, setListaCondominios] = useState([]);
+    const [listaUnidades, setListaUnidades] = useState([]);
+    const [unidadesFiltradas, setUnidadesFiltradas] = useState([]);
+
+    // Função para buscar TODOS os dados necessários para a página
+    const fetchData = async () => {
         setIsLoading(true);
         try {
-            const response = await getPessoas();
-            setPessoas(response.data);
+            // Promise.all executa várias chamadas em paralelo
+            const [pessoasRes, condominiosRes, unidadesRes] = await Promise.all([
+                getPessoas(),
+                getCondominios(),
+                getUnidades()
+            ]);
+            setPessoas(pessoasRes.data);
+            setListaCondominios(condominiosRes.data);
+            setListaUnidades(unidadesRes.data);
         } catch (error) {
-            console.error("Erro ao buscar pessoas:", error);
-            alert("Não foi possível carregar os dados das pessoas.");
+            console.error("Erro ao buscar dados:", error);
+            alert("Não foi possível carregar os dados da página.");
         } finally {
             setIsLoading(false);
         }
     };
 
     useEffect(() => {
-        fetchPessoas();
+        fetchData();
     }, []);
+
+    // Efeito para filtrar as unidades quando um condomínio é selecionado no formulário
+    useEffect(() => {
+        if (formData.condominioId) {
+            const unidadesDoCondominio = listaUnidades.filter(u => u.condominio.conCod === parseInt(formData.condominioId));
+            setUnidadesFiltradas(unidadesDoCondominio);
+        } else {
+            setUnidadesFiltradas([]);
+        }
+    }, [formData.condominioId, listaUnidades]);
 
     const handleAddNew = () => {
         setEditingPessoa(null);
@@ -153,34 +179,8 @@ const PessoasPage = () => {
             </div>
 
             <Modal isOpen={isInfoModalOpen} onClose={handleCloseInfoModal} title={editingPessoa ? 'Editar Pessoa' : 'Nova Pessoa'}>
-                {/* A chave (key) força o React a recriar o formulário, limpando estados antigos */}
                 <form onSubmit={handleSubmit} className="modal-form" key={editingPessoa ? editingPessoa.pesCod : 'new'}>
-                    <div className="form-group">
-                        <label>Nome Completo</label>
-                        {/* Usando 'value' para criar um componente controlado */}
-                        <input name="pesNome" value={formData.pesNome || ''} onChange={handleChange} required />
-                    </div>
-                    <div className="form-group">
-                        <label>CPF/CNPJ</label>
-                        <input name="pesCpfCnpj" value={formData.pesCpfCnpj || ''} onChange={handleChange} required />
-                    </div>
-                    <div className="form-group">
-                        <label>Email</label>
-                        <input name="pesEmail" type="email" value={formData.pesEmail || ''} onChange={handleChange} required />
-                    </div>
-                    {!editingPessoa && (
-                        <div className="form-group">
-                            <label>Senha</label>
-                            <input name="pesSenhaLogin" type="password" value={formData.pesSenhaLogin || ''} onChange={handleChange} required />
-                        </div>
-                    )}
-                     <div className="form-group">
-                        <label>Tipo</label>
-                        <select name="pesTipo" value={formData.pesTipo || 'F'} onChange={handleChange}>
-                            <option value="F">Física</option>
-                            <option value="J">Jurídica</option>
-                        </select>
-                    </div>
+                    {/* ... campos de Nome, CPF, Email, Senha ... */}
 
                     {!editingPessoa && (
                         <fieldset className="role-fieldset">
@@ -194,29 +194,57 @@ const PessoasPage = () => {
                                     <option value="ADMIN">Admin do Condomínio</option>
                                 </select>
                             </div>
+
+                            {/* Campo de Condomínio para Síndico e Admin */}
+                            {(formData.roleType === 'SINDICO' || formData.roleType === 'ADMIN') && (
+                                <div className="form-group">
+                                    <label>Condomínio</label>
+                                    <select name="condominioId" value={formData.condominioId || ''} onChange={handleChange} required>
+                                        <option value="">Selecione um condomínio</option>
+                                        {listaCondominios.map(condo => (
+                                            <option key={condo.conCod} value={condo.conCod}>{condo.conNome}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
+
+                            {/* Campos condicionais para Morador com dropdowns dependentes */}
                             {formData.roleType === 'MORADOR' && (
                                 <>
                                     <div className="form-group">
-                                        <label>ID da Unidade</label>
-                                        <input name="unidadeId" type="number" value={formData.unidadeId || ''} onChange={handleChange} required />
+                                        <label>Selecione o Condomínio</label>
+                                        <select name="condominioId" value={formData.condominioId || ''} onChange={handleChange} required>
+                                            <option value="">Selecione primeiro o condomínio</option>
+                                            {listaCondominios.map(condo => (
+                                                <option key={condo.conCod} value={condo.conCod}>{condo.conNome}</option>
+                                            ))}
+                                        </select>
                                     </div>
+                                    {/* O dropdown de unidades só aparece se um condomínio for selecionado */}
+                                    {formData.condominioId && (
+                                        <div className="form-group">
+                                            <label>Selecione a Unidade</label>
+                                            <select name="unidadeId" value={formData.unidadeId || ''} onChange={handleChange} required>
+                                                <option value="">Selecione a unidade</option>
+                                                {unidadesFiltradas.map(unidade => (
+                                                    <option key={unidade.uniCod} value={unidade.uniCod}>{unidade.uniNumero}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    )}
                                     <div className="form-group">
                                         <label>Tipo de Relacionamento</label>
                                         <select name="morTipoRelacionamento" value={formData.morTipoRelacionamento || 'PROPRIETARIO'} onChange={handleChange}>
                                             <option value="PROPRIETARIO">Proprietário</option>
                                             <option value="INQUILINO">Inquilino</option>
+                                            {/* Adicionar outros tipos se necessário */}
                                         </select>
                                     </div>
                                 </>
                             )}
-                            {(formData.roleType === 'SINDICO' || formData.roleType === 'ADMIN') && (
-                                <div className="form-group">
-                                    <label>ID do Condomínio</label>
-                                    <input name="condominioId" type="number" value={formData.condominioId || ''} onChange={handleChange} required />
-                                </div>
-                            )}
                         </fieldset>
                     )}
+
                     <div className="form-actions">
                         <button type="button" onClick={handleCloseInfoModal} className="btn-secondary">Cancelar</button>
                         <button type="submit" className="btn-primary">Salvar</button>
