@@ -142,7 +142,7 @@ const FinanceiroPage = () => {
                                         <td>Unid. {c.unidade.uniNumero} / Cond. {c.unidade.condominio.conCod}</td>
                                         <td>{c.ficValorTaxa.toFixed(2)}</td>
                                         <td>{new Date(c.ficDtVencimento + 'T00:00:00').toLocaleDateString()}</td>
-                                        <td>{c.ficStatusPagamento}</td>
+                                        <td>{formatStatus(c.ficStatusPagamento)}</td>
                                         <td className="actions-cell">
                                             {c.ficStatusPagamento !== 'PAGA' && c.ficStatusPagamento !== 'CANCELADA' &&
                                                 <button onClick={() => handleCancelarCobranca(c.ficCod)} className="btn-inactive">Cancelar</button>
