@@ -1,0 +1,21 @@
+.badges-container {
+    display: inline-flex;
+    gap: 6px;
+    margin-left: 10px;
+    vertical-align: middle;
+}
+
+.badge {
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #fff;
+    text-transform: uppercase;
+}
+
+.badge.admin { background-color: #c0392b; } /* Vermelho forte */
+.badge.gerente { background-color: #d35400; } /* Laranja */
+.badge.sindico { background-color: #2980b9; } /* Azul */
+.badge.admin-condo { background-color: #8e44ad; } /* Roxo */
+.badge.morador { background-color: #27ae60; } /* Verde */

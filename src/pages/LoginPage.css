@@ -1,0 +1,117 @@
+/* src/pages/LoginPage.css */
+
+.login-container {
+    /* NOVA ABORDAGEM COM GRID */
+    display: grid;
+    place-items: center; /* Centraliza horizontal e verticalmente */
+
+    /* O resto das propriedades continua igual */
+    width: 100%;
+    min-height: 100vh;
+    background: linear-gradient(to right, #4ca1af, #2c3e50);
+    padding: 1rem;
+    box-sizing: border-box;
+}
+
+.login-box {
+    background: rgba(255, 255, 255, 1);
+    padding: 2.5rem;
+    border-radius: 10px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+    width: 100%;
+    max-width: 400px;
+    text-align: center;
+    box-sizing: border-box;
+    animation: fadeIn 0.5s ease-in-out;
+}
+
+/* Placeholder para a logo */
+.login-logo {
+    font-size: 3.5rem;
+    margin-bottom: 1rem;
+    line-height: 1;
+}
+
+.login-box h1 {
+    margin-bottom: 0.5rem;
+    color: #2c3e50; /* Cor que combina com o gradiente */
+    font-size: 2rem;
+    font-weight: 700;
+}
+
+.login-box p {
+    margin-bottom: 2.5rem;
+    color: #555;
+    font-size: 1rem;
+}
+
+.form-group {
+    margin-bottom: 1.5rem;
+    text-align: left;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+    color: #444;
+}
+
+.error-message {
+    color: #d32f2f;
+    background-color: #ffcdd2;
+    border: 1px solid #d32f2f;
+    border-radius: 5px;
+    padding: 10px;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+}
+
+.login-box button[type="submit"] {
+    width: 100%;
+    padding: 12px;
+    font-size: 1.1rem;
+    font-weight: bold;
+    background-color: #3498db;
+    border: none;
+    transition: all 0.3s ease;
+    margin-top: 1.5rem; /* Garante o espaçamento abaixo do link */
+}
+
+.login-box button:hover {
+    background-color: #2980b9;
+    transform: translateY(-3px);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
+}
+
+/* Animação para a caixa de login aparecer suavemente */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.forgot-password-link {
+    text-align: right;
+    margin-top: 8px; /* Pequeno espaço acima do link */
+}
+
+.link-style {
+    background: none;
+    border: none;
+    color: #007bff;
+    text-decoration: none; /* Sem sublinhado por padrão */
+    padding: 0;
+    font-size: 0.85rem; /* Letra menor */
+    cursor: pointer;
+}
+
+.link-style:hover {
+    text-decoration: underline; /* Adiciona sublinhado ao passar o mouse */
+    color: #0056b3;
+}
