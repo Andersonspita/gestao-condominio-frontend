@@ -13,3 +13,8 @@ export const deleteMorador = (id) => {
     console.log(`FRONT-END: Simulating delete morador for id ${id}`);
     return Promise.resolve();
 };
+
+// Busca a lista de todos os moradores (vínculos)
+export const getMoradores = () => {
+    return api.get('/moradores');
+};
