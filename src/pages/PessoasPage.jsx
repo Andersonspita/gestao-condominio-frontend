@@ -2,12 +2,19 @@ import React, { useState, useEffect } from 'react';
 
 // Serviços de API
 import { getPessoas, createPessoa, updatePessoa, inativarPessoa, ativarPessoa } from '../api/pessoaService';
+<<<<<<< Updated upstream
 import { createMorador, getMoradores } from '../api/moradorService';
 import { createUsuarioCondominio, getAllUsuariosCondominio } from '../api/usuarioCondominioService';
 import { getCondominios } from '../api/condominioService';
 import { getUnidades } from '../api/unidadeService';
 
 // Componentes de UI
+=======
+import { createMorador } from '../api/moradorService';
+import { createUsuarioCondominio } from '../api/usuarioCondominioService';
+import { getCondominios } from '../api/condominioService';
+import { getUnidades } from '../api/unidadeService';
+>>>>>>> Stashed changes
 import Modal from '../components/ui/Modal';
 import ChangePasswordModal from '../components/ui/ChangePasswordModal';
 import RoleBadges from '../components/ui/RoleBadges';
@@ -26,6 +33,7 @@ const PessoasPage = () => {
     // --- ESTADOS DOS MODAIS ---
     const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
     const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+<<<<<<< Updated upstream
 
     // --- ESTADOS DE DADOS ---
     const [editingPessoa, setEditingPessoa] = useState(null);
@@ -33,15 +41,27 @@ const PessoasPage = () => {
     const [papeisUsuario, setPapeisUsuario] = useState([]);
 
     // --- ESTADOS PARA DROPDOWNS ---
+=======
+    const [editingPessoa, setEditingPessoa] = useState(null);
+    const [formData, setFormData] = useState({});
+>>>>>>> Stashed changes
     const [listaCondominios, setListaCondominios] = useState([]);
     const [listaUnidades, setListaUnidades] = useState([]);
     const [unidadesFiltradas, setUnidadesFiltradas] = useState([]);
 
+<<<<<<< Updated upstream
     // --- FUNÇÕES DE BUSCA DE DADOS ---
     const fetchData = async () => {
         setIsLoading(true);
         try {
             const [pessoasRes, condominiosRes, unidadesRes, papeisRes, moradoresRes] = await Promise.all([
+=======
+    // Definição da função para buscar os dados
+    const fetchData = async () => {
+        setIsLoading(true);
+        try {
+            const [pessoasRes, condominiosRes, unidadesRes] = await Promise.all([
+>>>>>>> Stashed changes
                 getPessoas(),
                 getCondominios(false), // Buscar todos, ativos e inativos
                 getUnidades(false),   // Buscar todas, ativas e inativas
@@ -124,8 +144,12 @@ const PessoasPage = () => {
         setFormData(prev => ({ ...prev, [name]: value }));
     };
 
+<<<<<<< Updated upstream
     // --- HANDLERS DE SUBMISSÃO E AÇÕES ---
     const handleSubmitDadosBasicos = async (e) => {
+=======
+    const handleSubmit = async (e) => {
+>>>>>>> Stashed changes
         e.preventDefault();
         try {
             if (editingPessoa) {
@@ -134,7 +158,18 @@ const PessoasPage = () => {
                 handleCloseInfoModal();
                 fetchData();
             } else {
+<<<<<<< Updated upstream
                 const pessoaResponse = await createPessoa(formData);
+=======
+                const pessoaPayload = {
+                    pesNome: formData.pesNome,
+                    pesCpfCnpj: formData.pesCpfCnpj,
+                    pesEmail: formData.pesEmail,
+                    pesSenhaLogin: formData.pesSenhaLogin,
+                    pesTipo: formData.pesTipo,
+                };
+                const pessoaResponse = await createPessoa(pessoaPayload);
+>>>>>>> Stashed changes
                 const novaPessoa = pessoaResponse.data;
                 let roleMessage = '';
 
@@ -159,11 +194,17 @@ const PessoasPage = () => {
                 handleCloseInfoModal();
                 fetchData();
             }
+<<<<<<< Updated upstream
+=======
+            handleCloseInfoModal();
+            fetchData(); // Chamada correta para atualizar os dados
+>>>>>>> Stashed changes
         } catch (error) {
             alert(`Erro ao salvar: ${error.response?.data?.message || 'Verifique os dados e tente novamente.'}`);
         }
     };
 
+<<<<<<< Updated upstream
     const handleAddRoleSubmit = async (e) => {
         e.preventDefault();
         if (!editingPessoa || !formData.newRoleType || !formData.newRoleCondominioId) {
@@ -195,6 +236,16 @@ const PessoasPage = () => {
         } catch (error) {
             alert(`Erro ao atribuir papel: ${error.response?.data?.message}`);
         }
+=======
+    const handleOpenPasswordModal = (pessoa) => {
+        setEditingPessoa(pessoa);
+        setIsPasswordModalOpen(true);
+    };
+    
+    const handleClosePasswordModal = () => {
+        setIsPasswordModalOpen(false);
+        setEditingPessoa(null);
+>>>>>>> Stashed changes
     };
     
     const handlePasswordSubmit = async (newPassword) => {
@@ -218,7 +269,11 @@ const PessoasPage = () => {
                     await ativarPessoa(pessoa.pesCod);
                 }
                 alert(`Pessoa foi ${action}da com sucesso!`);
+<<<<<<< Updated upstream
                 fetchData();
+=======
+                fetchData(); // Chamada correta para atualizar os dados
+>>>>>>> Stashed changes
             } catch (error) {
                 alert(`Erro ao ${action} a pessoa: ${error.response?.data?.message || 'Ocorreu um erro.'}`);
             }
@@ -232,6 +287,7 @@ const PessoasPage = () => {
                 <button onClick={handleAddNew}>Adicionar Pessoa</button>
             </div>
 
+<<<<<<< Updated upstream
             <Modal isOpen={isInfoModalOpen} onClose={handleCloseInfoModal} title={editingPessoa ? `Editar Pessoa: ${editingPessoa.pesNome}` : 'Nova Pessoa'}>
                 <form onSubmit={handleSubmitDadosBasicos} className="modal-form">
                     <div className="form-group"><label>Nome Completo</label><input name="pesNome" value={formData.pesNome || ''} onChange={handleChange} required /></div>
@@ -248,6 +304,95 @@ const PessoasPage = () => {
                         </fieldset>
                     )}
                     <div className="form-actions"><button type="button" onClick={handleCloseInfoModal} className="btn-secondary">Cancelar</button><button type="submit" className="btn-primary">Salvar Dados</button></div>
+=======
+            <Modal isOpen={isInfoModalOpen} onClose={handleCloseInfoModal} title={editingPessoa ? 'Editar Pessoa' : 'Nova Pessoa'}>
+                <form onSubmit={handleSubmit} className="modal-form" key={editingPessoa ? editingPessoa.pesCod : 'new'}>
+                    <div className="form-group">
+                        <label>Nome Completo</label>
+                        <input name="pesNome" value={formData.pesNome || ''} onChange={handleChange} required />
+                    </div>
+                    <div className="form-group">
+                        <label>CPF/CNPJ</label>
+                        <input name="pesCpfCnpj" value={formData.pesCpfCnpj || ''} onChange={handleChange} required />
+                    </div>
+                    <div className="form-group">
+                        <label>Email</label>
+                        <input name="pesEmail" type="email" value={formData.pesEmail || ''} onChange={handleChange} required />
+                    </div>
+                     <div className="form-group">
+                        <label>Tipo</label>
+                        <select name="pesTipo" value={formData.pesTipo || 'F'} onChange={handleChange}>
+                            <option value="F">Física</option>
+                            <option value="J">Jurídica</option>
+                        </select>
+                    </div>
+                    {!editingPessoa && (
+                        <div className="form-group">
+                            <label>Senha</label>
+                            <input name="pesSenhaLogin" type="password" value={formData.pesSenhaLogin || ''} onChange={handleChange} required />
+                        </div>
+                    )}
+                    {!editingPessoa && (
+                        <fieldset className="role-fieldset">
+                            <legend>Atribuir Papel Inicial (Opcional)</legend>
+                            <div className="form-group">
+                                <label>Papel</label>
+                                <select name="roleType" value={formData.roleType || 'NONE'} onChange={handleChange}>
+                                    <option value="NONE">Nenhum</option>
+                                    <option value="MORADOR">Morador</option>
+                                    <option value="SINDICO">Síndico</option>
+                                    <option value="ADMIN">Admin do Condomínio</option>
+                                </select>
+                            </div>
+                            {formData.roleType === 'MORADOR' && (
+                                <>
+                                    <div className="form-group">
+                                        <label>Selecione o Condomínio</label>
+                                        <select name="condominioId" value={formData.condominioId || ''} onChange={handleChange} required>
+                                            <option value="">Selecione primeiro o condomínio</option>
+                                            {listaCondominios.map(condo => (
+                                                <option key={condo.conCod} value={condo.conCod}>{condo.conNome}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    {formData.condominioId && (
+                                        <div className="form-group">
+                                            <label>Selecione a Unidade</label>
+                                            <select name="unidadeId" value={formData.unidadeId || ''} onChange={handleChange} required>
+                                                <option value="">Selecione a unidade</option>
+                                                {unidadesFiltradas.map(unidade => (
+                                                    <option key={unidade.uniCod} value={unidade.uniCod}>{unidade.uniNumero}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    )}
+                                    <div className="form-group">
+                                        <label>Tipo de Relacionamento</label>
+                                        <select name="morTipoRelacionamento" value={formData.morTipoRelacionamento || 'PROPRIETARIO'} onChange={handleChange}>
+                                            <option value="PROPRIETARIO">Proprietário</option>
+                                            <option value="INQUILINO">Inquilino</option>
+                                        </select>
+                                    </div>
+                                </>
+                            )}
+                            {(formData.roleType === 'SINDICO' || formData.roleType === 'ADMIN') && (
+                                <div className="form-group">
+                                    <label>Condomínio</label>
+                                    <select name="condominioId" value={formData.condominioId || ''} onChange={handleChange} required>
+                                        <option value="">Selecione um condomínio</option>
+                                        {listaCondominios.map(condo => (
+                                            <option key={condo.conCod} value={condo.conCod}>{condo.conNome}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
+                        </fieldset>
+                    )}
+                    <div className="form-actions">
+                        <button type="button" onClick={handleCloseInfoModal} className="btn-secondary">Cancelar</button>
+                        <button type="submit" className="btn-primary">Salvar</button>
+                    </div>
+>>>>>>> Stashed changes
                 </form>
 
                 {editingPessoa && (
@@ -278,8 +423,18 @@ const PessoasPage = () => {
                 )}
             </Modal>
             
+<<<<<<< Updated upstream
             <ChangePasswordModal isOpen={isPasswordModalOpen} onClose={handleClosePasswordModal} onSubmit={handlePasswordSubmit} userName={editingPessoa?.pesNome} />
             
+=======
+            <ChangePasswordModal
+                isOpen={isPasswordModalOpen}
+                onClose={handleClosePasswordModal}
+                onSubmit={handlePasswordSubmit}
+                userName={editingPessoa?.pesNome}
+            />
+
+>>>>>>> Stashed changes
             {isLoading ? <p>Carregando...</p> : (
                 <div className="table-container">
                     <table>
