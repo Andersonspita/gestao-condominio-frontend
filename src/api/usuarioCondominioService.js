@@ -20,3 +20,9 @@ export const deleteUsuarioCondominio = ({ pesCod, conCod, uscPapel }) => {
     console.log(`FRONT-END: Simulating delete role ${uscPapel} for person ${pesCod}`);
     return Promise.resolve();
 };
+
+// Busca TODAS as associações de papéis para todos os usuários
+export const getAllUsuariosCondominio = () => {
+    // Usamos ativos=false para garantir que pegamos todos os vínculos, ativos ou inativos
+    return api.get('/usuarios/condominios?ativos=false'); 
+};
