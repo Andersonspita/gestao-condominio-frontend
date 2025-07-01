@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 // Serviços de API
 import { getPessoas, createPessoa, updatePessoa, inativarPessoa, ativarPessoa } from '../api/pessoaService';
 import { createMorador } from '../api/moradorService';
-import { createUsuarioCondominio, getRolesByPessoa } from '../api/usuarioCondominioService';
+import { createUsuarioCondominio, getAllUsuariosCondominio } from '../api/usuarioCondominioService';
 import { getCondominios } from '../api/condominioService';
 import { getUnidades } from '../api/unidadeService';
 
@@ -13,8 +13,7 @@ import ChangePasswordModal from '../components/ui/ChangePasswordModal';
 import RoleBadges from '../components/ui/RoleBadges';
 
 // Utilitários
-import { maskCpfCnpj } from '../utils/formatters';
-import { formatStatus } from '../utils/formatters';
+import { maskCpfCnpj, formatStatus } from '../utils/formatters';
 
 // CSS
 import './Page.css';
@@ -42,12 +41,30 @@ const PessoasPage = () => {
     const fetchData = async () => {
         setIsLoading(true);
         try {
-            const [pessoasRes, condominiosRes, unidadesRes] = await Promise.all([
+            const [pessoasRes, condominiosRes, unidadesRes, papeisRes] = await Promise.all([
                 getPessoas(),
                 getCondominios(),
-                getUnidades()
+                getUnidades(),
+                getAllUsuariosCondominio()
             ]);
-            setPessoas(pessoasRes.data);
+
+            const papeisMap = papeisRes.data.reduce((acc, papel) => {
+                const pesCod = papel.pessoa.pesCod;
+                if (!acc[pesCod]) acc[pesCod] = [];
+                acc[pesCod].push(papel);
+                return acc;
+            }, {});
+
+            const pessoasComPapeis = pessoasRes.data.map(pessoa => ({
+                ...pessoa,
+                papeis: papeisMap[pessoa.pesCod] || [],
+                roleNames: [
+                    ...(pessoa.pesIsGlobalAdmin ? ['GLOBAL_ADMIN'] : []),
+                    ...(papeisMap[pessoa.pesCod] || []).map(p => p.uscPapel)
+                ].filter(Boolean) // Remove valores nulos ou vazios
+            }));
+
+            setPessoas(pessoasComPapeis);
             setListaCondominios(condominiosRes.data);
             setListaUnidades(unidadesRes.data);
         } catch (error) {
@@ -55,20 +72,6 @@ const PessoasPage = () => {
             alert("Não foi possível carregar os dados da página.");
         } finally {
             setIsLoading(false);
-        }
-    };
-
-    const fetchPapeis = async (pessoaId) => {
-        if (!pessoaId) {
-            setPapeisUsuario([]);
-            return;
-        }
-        try {
-            const response = await getRolesByPessoa(pessoaId);
-            const papeisDaPessoa = response.data.filter(p => p.pessoa.pesCod === pessoaId);
-            setPapeisUsuario(papeisDaPessoa);
-        } catch (error) {
-            console.error("Erro ao buscar papéis:", error);
         }
     };
 
@@ -88,6 +91,7 @@ const PessoasPage = () => {
     // --- HANDLERS PARA ABRIR/FECHAR MODAIS ---
     const handleAddNew = () => {
         setEditingPessoa(null);
+        setPapeisUsuario([]);
         setFormData({ pesTipo: 'F', roleType: 'NONE' });
         setIsInfoModalOpen(true);
     };
@@ -100,7 +104,7 @@ const PessoasPage = () => {
             pesEmail: pessoa.pesEmail,
             pesTipo: pessoa.pesTipo,
         });
-        fetchPapeis(pessoa.pesCod);
+        setPapeisUsuario(pessoa.papeis);
         setIsInfoModalOpen(true);
     };
 
@@ -129,17 +133,17 @@ const PessoasPage = () => {
         e.preventDefault();
         try {
             if (editingPessoa) {
-                await updatePessoa(editingPessoa.pesCod, formData);
-                alert('Pessoa atualizada com sucesso!');
-            } else {
-                const pessoaPayload = {
+                // Apenas atualiza os dados básicos da pessoa
+                await updatePessoa(editingPessoa.pesCod, {
                     pesNome: formData.pesNome,
                     pesCpfCnpj: formData.pesCpfCnpj,
                     pesEmail: formData.pesEmail,
-                    pesSenhaLogin: formData.pesSenhaLogin,
                     pesTipo: formData.pesTipo,
-                };
-                const pessoaResponse = await createPessoa(pessoaPayload);
+                });
+                alert('Pessoa atualizada com sucesso!');
+            } else {
+                // Cria a pessoa e, opcionalmente, atribui o primeiro papel
+                const pessoaResponse = await createPessoa(formData);
                 const novaPessoa = pessoaResponse.data;
                 let roleMessage = '';
 
@@ -151,13 +155,13 @@ const PessoasPage = () => {
                             morTipoRelacionamento: formData.morTipoRelacionamento || 'PROPRIETARIO'
                         });
                         roleMessage = ' e associada como morador(a).';
-                    } else {
+                    } else { // SINDICO, ADMIN, etc.
                         await createUsuarioCondominio({
                             pessoa: { pesCod: novaPessoa.pesCod },
                             condominio: { conCod: parseInt(formData.condominioId) },
                             uscPapel: formData.roleType
                         });
-                        roleMessage = ` e atribuído o papel de ${formData.roleType}.`;
+                        roleMessage = ` e atribuído o papel de ${formatStatus(formData.roleType)}.`;
                     }
                 }
                 alert(`Pessoa criada com sucesso${roleMessage}`);
@@ -165,7 +169,30 @@ const PessoasPage = () => {
             handleCloseInfoModal();
             fetchData();
         } catch (error) {
-            alert(`Erro: ${error.response?.data?.message || 'Não foi possível salvar.'}`);
+            alert(`Erro ao salvar: ${error.response?.data?.message || 'Verifique os dados e tente novamente.'}`);
+        }
+    };
+    
+    const handleAddRoleSubmit = async (e) => {
+        e.preventDefault();
+        if (!editingPessoa || !formData.newRoleType || !formData.newRoleCondominioId) {
+            alert("Por favor, selecione um papel e um condomínio.");
+            return;
+        }
+
+        const roleData = {
+            pessoa: { pesCod: editingPessoa.pesCod },
+            condominio: { conCod: parseInt(formData.newRoleCondominioId) },
+            uscPapel: formData.newRoleType
+        };
+
+        try {
+            await createUsuarioCondominio(roleData);
+            alert("Novo papel atribuído com sucesso!");
+            fetchData(); // Rebusca todos os dados para atualizar a lista e os badges
+            handleCloseInfoModal(); // Fecha o modal após o sucesso
+        } catch (error) {
+            alert(`Erro ao atribuir papel: ${error.response?.data?.message}`);
         }
     };
 
@@ -204,136 +231,65 @@ const PessoasPage = () => {
                 <button onClick={handleAddNew}>Adicionar Pessoa</button>
             </div>
 
-            <Modal isOpen={isInfoModalOpen} onClose={handleCloseInfoModal} title={editingPessoa ? 'Editar Pessoa' : 'Nova Pessoa'}>
-                <form onSubmit={handleSubmit} className="modal-form" key={editingPessoa ? editingPessoa.pesCod : 'new'}>
-                    <div className="form-group">
-                        <label>Nome Completo</label>
-                        <input name="pesNome" value={formData.pesNome || ''} onChange={handleChange} required />
-                    </div>
-                    <div className="form-group">
-                        <label>CPF/CNPJ</label>
-                        <input name="pesCpfCnpj" value={formData.pesCpfCnpj || ''} onChange={handleChange} required />
-                    </div>
-                    <div className="form-group">
-                        <label>Email</label>
-                        <input name="pesEmail" type="email" value={formData.pesEmail || ''} onChange={handleChange} required />
-                    </div>
-                     <div className="form-group">
-                        <label>Tipo</label>
-                        <select name="pesTipo" value={formData.pesTipo || 'F'} onChange={handleChange}>
-                            <option value="F">Física</option>
-                            <option value="J">Jurídica</option>
-                        </select>
-                    </div>
-
-                    {!editingPessoa && (
-                        <div className="form-group">
-                            <label>Senha</label>
-                            <input name="pesSenhaLogin" type="password" value={formData.pesSenhaLogin || ''} onChange={handleChange} required />
-                        </div>
-                    )}
-                    
-                    {!editingPessoa && (
-                        <fieldset className="role-fieldset">
-                            <legend>Atribuir Papel Inicial (Opcional)</legend>
-                            <div className="form-group">
-                                <label>Papel</label>
-                                <select name="roleType" value={formData.roleType || 'NONE'} onChange={handleChange}>
-                                    <option value="NONE">Nenhum</option>
-                                    <option value="MORADOR">Morador</option>
-                                    <option value="SINDICO">Síndico</option>
-                                    <option value="ADMIN">Admin do Condomínio</option>
-                                </select>
-                            </div>
-
-                            {(formData.roleType === 'SINDICO' || formData.roleType === 'ADMIN') && (
-                                <div className="form-group">
-                                    <label>Condomínio</label>
-                                    <select name="condominioId" value={formData.condominioId || ''} onChange={handleChange} required>
-                                        <option value="">Selecione um condomínio</option>
-                                        {listaCondominios.map(condo => (
-                                            <option key={condo.conCod} value={condo.conCod}>{condo.conNome}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                            )}
-
-                            {formData.roleType === 'MORADOR' && (
-                                <>
-                                    <div className="form-group">
-                                        <label>Selecione o Condomínio</label>
-                                        <select name="condominioId" value={formData.condominioId || ''} onChange={handleChange} required>
-                                            <option value="">Selecione primeiro o condomínio</option>
-                                            {listaCondominios.map(condo => (
-                                                <option key={condo.conCod} value={condo.conCod}>{condo.conNome}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                    {formData.condominioId && (
-                                        <div className="form-group">
-                                            <label>Selecione a Unidade</label>
-                                            <select name="unidadeId" value={formData.unidadeId || ''} onChange={handleChange} required>
-                                                <option value="">Selecione a unidade</option>
-                                                {unidadesFiltradas.map(unidade => (
-                                                    <option key={unidade.uniCod} value={unidade.uniCod}>{unidade.uniNumero}</option>
-                                                ))}
-                                            </select>
-                                        </div>
-                                    )}
-                                    <div className="form-group">
-                                        <label>Tipo de Relacionamento</label>
-                                        <select name="morTipoRelacionamento" value={formData.morTipoRelacionamento || 'PROPRIETARIO'} onChange={handleChange}>
-                                            <option value="PROPRIETARIO">Proprietário</option>
-                                            <option value="INQUILINO">Inquilino</option>
-                                        </select>
-                                    </div>
-                                </>
-                            )}
-                        </fieldset>
-                    )}
-
-                    <div className="form-actions">
-                        <button type="button" onClick={handleCloseInfoModal} className="btn-secondary">Cancelar</button>
-                        <button type="submit" className="btn-primary">Salvar</button>
-                    </div>
+            <Modal isOpen={isInfoModalOpen} onClose={handleCloseInfoModal} title={editingPessoa ? `Editar Pessoa: ${editingPessoa.pesNome}` : 'Nova Pessoa'}>
+                <form onSubmit={handleSubmit} className="modal-form">
+                    <div className="form-group"><label>Nome Completo</label><input name="pesNome" value={formData.pesNome || ''} onChange={handleChange} required /></div>
+                    <div className="form-group"><label>CPF/CNPJ</label><input name="pesCpfCnpj" value={formData.pesCpfCnpj || ''} onChange={handleChange} required /></div>
+                    <div className="form-group"><label>Email</label><input name="pesEmail" type="email" value={formData.pesEmail || ''} onChange={handleChange} required /></div>
+                    <div className="form-group"><label>Tipo</label><select name="pesTipo" value={formData.pesTipo || 'F'} onChange={handleChange}><option value="F">Física</option><option value="J">Jurídica</option></select></div>
+                    {!editingPessoa && <div className="form-group"><label>Senha</label><input name="pesSenhaLogin" type="password" value={formData.pesSenhaLogin || ''} onChange={handleChange} required /></div>}
+                    <div className="form-actions"><button type="button" onClick={handleCloseInfoModal} className="btn-secondary">Cancelar</button><button type="submit" className="btn-primary">Salvar Dados Básicos</button></div>
                 </form>
+
+                {editingPessoa && (
+                    <>
+                        <hr style={{margin: '2rem 0'}} />
+                        <div className="section-header" style={{border: 'none', paddingBottom: '0'}}><h3>Gerenciar Papéis</h3></div>
+                        <div className="roles-list">
+                            {papeisUsuario.length > 0 ? papeisUsuario.map(papel => (
+                                <div key={`${papel.condominio.conCod}-${papel.uscPapel}`} className="role-item">
+                                    <span><strong>{formatStatus(papel.uscPapel)}</strong> no Cond. {papel.condominio.conNome}</span>
+                                    <button type="button" className="btn-remove-role" title="Remover Papel (A implementar)">&times;</button>
+                                </div>
+                            )) : <p>Esta pessoa não possui papéis de condomínio atribuídos.</p>}
+                        </div>
+                        <fieldset className="role-fieldset"><legend>Adicionar Novo Papel</legend>
+                            <form onSubmit={handleAddRoleSubmit}>
+                                <div className="form-group"><label>Papel</label><select name="newRoleType" onChange={handleChange} required><option value="">Selecione...</option><option value="SINDICO">Síndico</option><option value="ADMIN">Admin do Condomínio</option></select></div>
+                                <div className="form-group"><label>Condomínio</label><select name="newRoleCondominioId" onChange={handleChange} required><option value="">Selecione...</option>{listaCondominios.map(condo => (<option key={condo.conCod} value={condo.conCod}>{condo.conNome}</option>))}</select></div>
+                                <div className="form-actions"><button type="submit" className="btn-primary">Adicionar Papel</button></div>
+                            </form>
+                        </fieldset>
+                    </>
+                )}
+
+                {!editingPessoa && (
+                    <fieldset className="role-fieldset">
+                        <legend>Atribuir Papel Inicial (Opcional)</legend>
+                        <div className="form-group"><label>Papel</label><select name="roleType" value={formData.roleType || 'NONE'} onChange={handleChange}><option value="NONE">Nenhum</option><option value="MORADOR">Morador</option><option value="SINDICO">Síndico</option><option value="ADMIN">Admin do Condomínio</option></select></div>
+                        {formData.roleType === 'MORADOR' && (<><div className="form-group"><label>Selecione o Condomínio</label><select name="condominioId" value={formData.condominioId || ''} onChange={handleChange} required><option value="">Selecione primeiro o condomínio</option>{listaCondominios.map(condo => (<option key={condo.conCod} value={condo.conCod}>{condo.conNome}</option>))}</select></div>{formData.condominioId && (<div className="form-group"><label>Selecione a Unidade</label><select name="unidadeId" value={formData.unidadeId || ''} onChange={handleChange} required><option value="">Selecione a unidade</option>{unidadesFiltradas.map(unidade => (<option key={unidade.uniCod} value={unidade.uniCod}>{unidade.uniNumero}</option>))}</select></div>)}<div className="form-group"><label>Tipo de Relacionamento</label><select name="morTipoRelacionamento" value={formData.morTipoRelacionamento || 'PROPRIETARIO'} onChange={handleChange}><option value="PROPRIETARIO">Proprietário</option><option value="INQUILINO">Inquilino</option></select></div></>)}
+                        {(formData.roleType === 'SINDICO' || formData.roleType === 'ADMIN') && (<div className="form-group"><label>Condomínio</label><select name="condominioId" value={formData.condominioId || ''} onChange={handleChange} required><option value="">Selecione um condomínio</option>{listaCondominios.map(condo => (<option key={condo.conCod} value={condo.conCod}>{condo.conNome}</option>))}</select></div>)}
+                    </fieldset>
+                )}
             </Modal>
-            
-            <ChangePasswordModal
-                isOpen={isPasswordModalOpen}
-                onClose={handleClosePasswordModal}
-                onSubmit={handlePasswordSubmit}
-                userName={editingPessoa?.pesNome}
-            />
+
+            <ChangePasswordModal isOpen={isPasswordModalOpen} onClose={handleClosePasswordModal} onSubmit={handlePasswordSubmit} userName={editingPessoa?.pesNome} />
 
             {isLoading ? <p>Carregando...</p> : (
                 <div className="table-container">
                     <table>
-                        <thead>
-                            <tr>
-                                <th>Nome</th>
-                                <th>Email</th>
-                                <th>CPF/CNPJ</th>
-                                <th>Status</th>
-                                <th>Ações</th>
-                            </tr>
-                        </thead>
+                        <thead><tr><th>Nome</th><th>Email</th><th>CPF/CNPJ</th><th>Status</th><th>Ações</th></tr></thead>
                         <tbody>
                             {pessoas.map(pessoa => (
                                 <tr key={pessoa.pesCod}>
-                                    <td>
-                                        {pessoa.pesNome}
-                                        <RoleBadges user={pessoa} />
-                                    </td>
+                                    <td>{pessoa.pesNome}<RoleBadges roles={pessoa.roleNames} /></td>
                                     <td>{pessoa.pesEmail}</td>
                                     <td>{maskCpfCnpj(pessoa.pesCpfCnpj)}</td>
                                     <td>{pessoa.pesAtivo ? 'Ativo' : 'Inativo'}</td>
                                     <td className="actions-cell">
                                         <button onClick={() => handleEdit(pessoa)} className="btn-edit">Editar</button>
                                         <button onClick={() => handleOpenPasswordModal(pessoa)} className="btn-password">Alterar Senha</button>
-                                        <button onClick={() => handleToggleAtivo(pessoa)} className={pessoa.pesAtivo ? "btn-inactive" : "btn-active"}>
-                                            {pessoa.pesAtivo ? 'Inativar' : 'Ativar'}
-                                        </button>
+                                        <button onClick={() => handleToggleAtivo(pessoa)} className={pessoa.pesAtivo ? "btn-inactive" : "btn-active"}>{pessoa.pesAtivo ? 'Inativar' : 'Ativar'}</button>
                                     </td>
                                 </tr>
                             ))}
