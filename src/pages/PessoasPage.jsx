@@ -1,94 +1,83 @@
 import React, { useState, useEffect } from 'react';
-
 // Serviços de API
 import { getPessoas, createPessoa, updatePessoa, inativarPessoa, ativarPessoa } from '../api/pessoaService';
-import { createMorador } from '../api/moradorService';
+import { createMorador, getMoradores } from '../api/moradorService';
 import { createUsuarioCondominio, getAllUsuariosCondominio } from '../api/usuarioCondominioService';
 import { getCondominios } from '../api/condominioService';
 import { getUnidades } from '../api/unidadeService';
-
-// Componentes de UI
+// Componentes e Utilitários
 import Modal from '../components/ui/Modal';
 import ChangePasswordModal from '../components/ui/ChangePasswordModal';
 import RoleBadges from '../components/ui/RoleBadges';
-
-// Utilitários
 import { maskCpfCnpj, formatStatus } from '../utils/formatters';
-
 // CSS
 import './Page.css';
 
 const PessoasPage = () => {
-    // --- ESTADOS PRINCIPAIS ---
     const [pessoas, setPessoas] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
-    
-    // --- ESTADOS DOS MODAIS ---
     const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
     const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
-    
-    // --- ESTADOS DE DADOS ---
     const [editingPessoa, setEditingPessoa] = useState(null);
     const [formData, setFormData] = useState({});
     const [papeisUsuario, setPapeisUsuario] = useState([]);
-    
-    // --- ESTADOS PARA DROPDOWNS ---
     const [listaCondominios, setListaCondominios] = useState([]);
     const [listaUnidades, setListaUnidades] = useState([]);
     const [unidadesFiltradas, setUnidadesFiltradas] = useState([]);
 
-    // --- FUNÇÕES DE BUSCA DE DADOS ---
+    // Função para buscar TODOS os dados e combiná-los
     const fetchData = async () => {
         setIsLoading(true);
         try {
-            const [pessoasRes, condominiosRes, unidadesRes, papeisRes] = await Promise.all([
-                getPessoas(),
-                getCondominios(),
-                getUnidades(),
-                getAllUsuariosCondominio()
+            const [pessoasRes, condominiosRes, unidadesRes, papeisRes, moradoresRes] = await Promise.all([
+                getPessoas(), getCondominios(), getUnidades(), getAllUsuariosCondominio(), getMoradores()
             ]);
 
             const papeisMap = papeisRes.data.reduce((acc, papel) => {
                 const pesCod = papel.pessoa.pesCod;
                 if (!acc[pesCod]) acc[pesCod] = [];
-                acc[pesCod].push(papel);
+                acc[pesCod].push({ tipo: 'papel', ...papel });
                 return acc;
             }, {});
 
-            const pessoasComPapeis = pessoasRes.data.map(pessoa => ({
-                ...pessoa,
-                papeis: papeisMap[pessoa.pesCod] || [],
-                roleNames: [
+            moradoresRes.data.forEach(morador => {
+                const pesCod = morador.pessoa.pesCod;
+                if (!acc[pesCod]) acc[pesCod] = [];
+                acc[pesCod].push({ tipo: 'morador', ...morador });
+            });
+
+            const pessoasComPapeis = pessoasRes.data.map(pessoa => {
+                const todosOsPapeis = papeisMap[pessoa.pesCod] || [];
+                const roleNames = [
                     ...(pessoa.pesIsGlobalAdmin ? ['GLOBAL_ADMIN'] : []),
-                    ...(papeisMap[pessoa.pesCod] || []).map(p => p.uscPapel)
-                ].filter(Boolean) // Remove valores nulos ou vazios
-            }));
+                    ...todosOsPapeis.map(p => p.tipo === 'morador' ? 'MORADOR' : p.uscPapel)
+                ];
+                return { ...pessoa, papeis: todosOsPapeis, roleNames: [...new Set(roleNames)] }; // Remove duplicatas
+            });
 
             setPessoas(pessoasComPapeis);
             setListaCondominios(condominiosRes.data);
             setListaUnidades(unidadesRes.data);
         } catch (error) {
             console.error("Erro ao buscar dados:", error);
-            alert("Não foi possível carregar os dados da página.");
         } finally {
             setIsLoading(false);
         }
     };
 
-    useEffect(() => {
-        fetchData();
-    }, []);
+    useEffect(() => { fetchData(); }, []);
 
     useEffect(() => {
-        if (formData.condominioId) {
-            const unidadesDoCondominio = listaUnidades.filter(u => u.condominio.conCod === parseInt(formData.condominioId));
-            setUnidadesFiltradas(unidadesDoCondominio);
+        const CId = formData.newRoleCondominioId || formData.condominioId;
+        if (CId) {
+            setUnidadesFiltradas(listaUnidades.filter(u => u.condominio.conCod === parseInt(CId)));
         } else {
             setUnidadesFiltradas([]);
         }
-    }, [formData.condominioId, listaUnidades]);
+    }, [formData.condominioId, formData.newRoleCondominioId, listaUnidades]);
 
-    // --- HANDLERS PARA ABRIR/FECHAR MODAIS ---
+
+    // Handlers para abrir/fechar modais
     const handleAddNew = () => {
         setEditingPessoa(null);
         setPapeisUsuario([]);
@@ -108,41 +97,23 @@ const PessoasPage = () => {
         setIsInfoModalOpen(true);
     };
 
-    const handleCloseInfoModal = () => {
-        setIsInfoModalOpen(false);
-        setEditingPessoa(null);
-    };
+    const handleCloseInfoModal = () => { setIsInfoModalOpen(false); setEditingPessoa(null); };
+    const handleOpenPasswordModal = (pessoa) => { setEditingPessoa(pessoa); setIsPasswordModalOpen(true); };
+    const handleClosePasswordModal = () => { setIsPasswordModalOpen(false); setEditingPessoa(null); };
 
-    const handleOpenPasswordModal = (pessoa) => {
-        setEditingPessoa(pessoa);
-        setIsPasswordModalOpen(true);
-    };
-
-    const handleClosePasswordModal = () => {
-        setIsPasswordModalOpen(false);
-        setEditingPessoa(null);
-    };
-    
     const handleChange = (e) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
     };
 
-    // --- HANDLERS DE SUBMISSÃO E AÇÕES ---
-    const handleSubmit = async (e) => {
+    // Handlers de Submissão e Ações
+    const handleSubmitDadosBasicos = async (e) => {
         e.preventDefault();
         try {
             if (editingPessoa) {
-                // Apenas atualiza os dados básicos da pessoa
-                await updatePessoa(editingPessoa.pesCod, {
-                    pesNome: formData.pesNome,
-                    pesCpfCnpj: formData.pesCpfCnpj,
-                    pesEmail: formData.pesEmail,
-                    pesTipo: formData.pesTipo,
-                });
+                await updatePessoa(editingPessoa.pesCod, formData);
                 alert('Pessoa atualizada com sucesso!');
             } else {
-                // Cria a pessoa e, opcionalmente, atribui o primeiro papel
                 const pessoaResponse = await createPessoa(formData);
                 const novaPessoa = pessoaResponse.data;
                 let roleMessage = '';
@@ -155,7 +126,7 @@ const PessoasPage = () => {
                             morTipoRelacionamento: formData.morTipoRelacionamento || 'PROPRIETARIO'
                         });
                         roleMessage = ' e associada como morador(a).';
-                    } else { // SINDICO, ADMIN, etc.
+                    } else {
                         await createUsuarioCondominio({
                             pessoa: { pesCod: novaPessoa.pesCod },
                             condominio: { conCod: parseInt(formData.condominioId) },
@@ -169,28 +140,34 @@ const PessoasPage = () => {
             handleCloseInfoModal();
             fetchData();
         } catch (error) {
-            alert(`Erro ao salvar: ${error.response?.data?.message || 'Verifique os dados e tente novamente.'}`);
+            alert(`Erro ao salvar: ${error.response?.data?.message || 'Verifique os dados.'}`);
         }
     };
-    
+
     const handleAddRoleSubmit = async (e) => {
         e.preventDefault();
-        if (!editingPessoa || !formData.newRoleType || !formData.newRoleCondominioId) {
-            alert("Por favor, selecione um papel e um condomínio.");
+        if (!editingPessoa || !formData.newRoleType || (!formData.newRoleCondominioId && !formData.condominioId)) {
+            alert("Por favor, selecione um papel e as informações correspondentes.");
             return;
         }
 
-        const roleData = {
-            pessoa: { pesCod: editingPessoa.pesCod },
-            condominio: { conCod: parseInt(formData.newRoleCondominioId) },
-            uscPapel: formData.newRoleType
-        };
-
         try {
-            await createUsuarioCondominio(roleData);
+            if (formData.newRoleType === 'MORADOR') {
+                await createMorador({
+                    pessoa: { pesCod: editingPessoa.pesCod },
+                    unidade: { uniCod: parseInt(formData.newRoleUnidadeId) },
+                    morTipoRelacionamento: formData.newRoleTipoRelacionamento || 'PROPRIETARIO'
+                });
+            } else {
+                await createUsuarioCondominio({
+                    pessoa: { pesCod: editingPessoa.pesCod },
+                    condominio: { conCod: parseInt(formData.newRoleCondominioId) },
+                    uscPapel: formData.newRoleType
+                });
+            }
             alert("Novo papel atribuído com sucesso!");
-            fetchData(); // Rebusca todos os dados para atualizar a lista e os badges
-            handleCloseInfoModal(); // Fecha o modal após o sucesso
+            fetchData();
+            handleCloseInfoModal();
         } catch (error) {
             alert(`Erro ao atribuir papel: ${error.response?.data?.message}`);
         }
