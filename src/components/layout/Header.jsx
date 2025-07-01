@@ -7,7 +7,8 @@ const Header = () => {
     return (
         <header className="header">
             <div className="user-info">
-                <span>Bem-vindo, {user?.email}</span>
+                {/* Altera de user.email para user.pesNome */}
+                <span>Bem-vindo, {user?.pesNome}</span>
                 <button onClick={logout} className="logout-button">Sair</button>
             </div>
         </header>
