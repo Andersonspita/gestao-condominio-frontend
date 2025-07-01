@@ -1,27 +1,44 @@
 import React, { useState, useEffect } from 'react';
+
+// Serviços de API
 import { getPessoas, createPessoa, updatePessoa, inativarPessoa, ativarPessoa } from '../api/pessoaService';
 import { createMorador } from '../api/moradorService';
-import { createUsuarioCondominio } from '../api/usuarioCondominioService';
+import { createUsuarioCondominio, getRolesByPessoa } from '../api/usuarioCondominioService';
 import { getCondominios } from '../api/condominioService';
 import { getUnidades } from '../api/unidadeService';
+
+// Componentes de UI
 import Modal from '../components/ui/Modal';
 import ChangePasswordModal from '../components/ui/ChangePasswordModal';
 import RoleBadges from '../components/ui/RoleBadges';
+
+// Utilitários
 import { maskCpfCnpj } from '../utils/formatters';
+import { formatStatus } from '../utils/formatters';
+
+// CSS
 import './Page.css';
 
 const PessoasPage = () => {
+    // --- ESTADOS PRINCIPAIS ---
     const [pessoas, setPessoas] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
+    
+    // --- ESTADOS DOS MODAIS ---
     const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
     const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+    
+    // --- ESTADOS DE DADOS ---
     const [editingPessoa, setEditingPessoa] = useState(null);
     const [formData, setFormData] = useState({});
+    const [papeisUsuario, setPapeisUsuario] = useState([]);
+    
+    // --- ESTADOS PARA DROPDOWNS ---
     const [listaCondominios, setListaCondominios] = useState([]);
     const [listaUnidades, setListaUnidades] = useState([]);
     const [unidadesFiltradas, setUnidadesFiltradas] = useState([]);
 
-    // Definição da função para buscar os dados
+    // --- FUNÇÕES DE BUSCA DE DADOS ---
     const fetchData = async () => {
         setIsLoading(true);
         try {
@@ -41,6 +58,20 @@ const PessoasPage = () => {
         }
     };
 
+    const fetchPapeis = async (pessoaId) => {
+        if (!pessoaId) {
+            setPapeisUsuario([]);
+            return;
+        }
+        try {
+            const response = await getRolesByPessoa(pessoaId);
+            const papeisDaPessoa = response.data.filter(p => p.pessoa.pesCod === pessoaId);
+            setPapeisUsuario(papeisDaPessoa);
+        } catch (error) {
+            console.error("Erro ao buscar papéis:", error);
+        }
+    };
+
     useEffect(() => {
         fetchData();
     }, []);
@@ -54,6 +85,7 @@ const PessoasPage = () => {
         }
     }, [formData.condominioId, listaUnidades]);
 
+    // --- HANDLERS PARA ABRIR/FECHAR MODAIS ---
     const handleAddNew = () => {
         setEditingPessoa(null);
         setFormData({ pesTipo: 'F', roleType: 'NONE' });
@@ -68,6 +100,7 @@ const PessoasPage = () => {
             pesEmail: pessoa.pesEmail,
             pesTipo: pessoa.pesTipo,
         });
+        fetchPapeis(pessoa.pesCod);
         setIsInfoModalOpen(true);
     };
 
@@ -76,11 +109,22 @@ const PessoasPage = () => {
         setEditingPessoa(null);
     };
 
+    const handleOpenPasswordModal = (pessoa) => {
+        setEditingPessoa(pessoa);
+        setIsPasswordModalOpen(true);
+    };
+
+    const handleClosePasswordModal = () => {
+        setIsPasswordModalOpen(false);
+        setEditingPessoa(null);
+    };
+    
     const handleChange = (e) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
     };
 
+    // --- HANDLERS DE SUBMISSÃO E AÇÕES ---
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
@@ -119,20 +163,10 @@ const PessoasPage = () => {
                 alert(`Pessoa criada com sucesso${roleMessage}`);
             }
             handleCloseInfoModal();
-            fetchData(); // Chamada correta para atualizar os dados
+            fetchData();
         } catch (error) {
             alert(`Erro: ${error.response?.data?.message || 'Não foi possível salvar.'}`);
         }
-    };
-
-    const handleOpenPasswordModal = (pessoa) => {
-        setEditingPessoa(pessoa);
-        setIsPasswordModalOpen(true);
-    };
-    
-    const handleClosePasswordModal = () => {
-        setIsPasswordModalOpen(false);
-        setEditingPessoa(null);
     };
 
     const handlePasswordSubmit = async (newPassword) => {
@@ -156,7 +190,7 @@ const PessoasPage = () => {
                     await ativarPessoa(pessoa.pesCod);
                 }
                 alert(`Pessoa foi ${action}da com sucesso!`);
-                fetchData(); // Chamada correta para atualizar os dados
+                fetchData();
             } catch (error) {
                 alert(`Erro ao ${action} a pessoa: ${error.response?.data?.message || 'Ocorreu um erro.'}`);
             }
@@ -191,12 +225,14 @@ const PessoasPage = () => {
                             <option value="J">Jurídica</option>
                         </select>
                     </div>
+
                     {!editingPessoa && (
                         <div className="form-group">
                             <label>Senha</label>
                             <input name="pesSenhaLogin" type="password" value={formData.pesSenhaLogin || ''} onChange={handleChange} required />
                         </div>
                     )}
+                    
                     {!editingPessoa && (
                         <fieldset className="role-fieldset">
                             <legend>Atribuir Papel Inicial (Opcional)</legend>
@@ -209,6 +245,19 @@ const PessoasPage = () => {
                                     <option value="ADMIN">Admin do Condomínio</option>
                                 </select>
                             </div>
+
+                            {(formData.roleType === 'SINDICO' || formData.roleType === 'ADMIN') && (
+                                <div className="form-group">
+                                    <label>Condomínio</label>
+                                    <select name="condominioId" value={formData.condominioId || ''} onChange={handleChange} required>
+                                        <option value="">Selecione um condomínio</option>
+                                        {listaCondominios.map(condo => (
+                                            <option key={condo.conCod} value={condo.conCod}>{condo.conNome}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
+
                             {formData.roleType === 'MORADOR' && (
                                 <>
                                     <div className="form-group">
@@ -240,19 +289,9 @@ const PessoasPage = () => {
                                     </div>
                                 </>
                             )}
-                            {(formData.roleType === 'SINDICO' || formData.roleType === 'ADMIN') && (
-                                <div className="form-group">
-                                    <label>Condomínio</label>
-                                    <select name="condominioId" value={formData.condominioId || ''} onChange={handleChange} required>
-                                        <option value="">Selecione um condomínio</option>
-                                        {listaCondominios.map(condo => (
-                                            <option key={condo.conCod} value={condo.conCod}>{condo.conNome}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                            )}
                         </fieldset>
                     )}
+
                     <div className="form-actions">
                         <button type="button" onClick={handleCloseInfoModal} className="btn-secondary">Cancelar</button>
                         <button type="submit" className="btn-primary">Salvar</button>
