@@ -59,3 +59,39 @@
     padding-bottom: 0.75rem;
     margin-bottom: 1rem;
 }
+
+.finance-summary {
+    display: flex;
+    justify-content: space-around;
+    text-align: center;
+}
+
+.finance-summary p {
+    margin: 0 0 0.5rem 0;
+    color: #667;
+}
+
+.finance-summary strong {
+    font-size: 1.2rem;
+}
+
+.status-ok {
+    color: #28a745; /* Verde */
+}
+
+.status-danger {
+    color: #dc3545; /* Vermelho */
+}
+
+.list-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.list-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: 500;
+}
