@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { getCondominios, createCondominio, updateCondominio, ativarCondominio, inativarCondominio } from '../api/condominioService';
+import { getAdministradoras } from '../api/administradoraService'; // Importar para o dropdown
 import Modal from '../components/ui/Modal';
-import './Page.css'; // Reutilizando os estilos gerais
+import './Page.css';
 
 const CondominiosPage = () => {
     const [condominios, setCondominios] = useState([]);
@@ -10,36 +11,37 @@ const CondominiosPage = () => {
     
     const [editingCondominio, setEditingCondominio] = useState(null);
     const [formData, setFormData] = useState({});
+    
+    // Novo estado para a lista de administradoras
+    const [listaAdmin, setListaAdmin] = useState([]);
 
-    // Função para buscar os dados da API
-    const fetchCondominios = async () => {
+    const fetchData = async () => {
         setIsLoading(true);
         try {
-            const response = await getCondominios();
-            setCondominios(response.data);
+            const [condominiosRes, adminRes] = await Promise.all([
+                getCondominios(false), // Pega ativos e inativos
+                getAdministradoras(true) // Pega apenas administradoras ativas para o dropdown
+            ]);
+            setCondominios(condominiosRes.data);
+            setListaAdmin(adminRes.data);
         } catch (error) {
-            console.error("Erro ao buscar condomínios:", error);
-            alert("Não foi possível carregar os dados dos condomínios.");
+            console.error("Erro ao carregar dados:", error);
+            alert("Não foi possível carregar os dados da página.");
         } finally {
             setIsLoading(false);
         }
     };
 
-    useEffect(() => {
-        fetchCondominios();
-    }, []);
+    useEffect(() => { fetchData(); }, []);
 
-    // Abre o modal para um novo condomínio
     const handleAddNew = () => {
         setEditingCondominio(null);
-        setFormData({ conTipologia: 'RESIDENCIAL' }); // Valor padrão
+        setFormData({ conTipologia: 'RESIDENCIAL' });
         setIsModalOpen(true);
     };
 
-    // Abre o modal para editar um condomínio existente
     const handleEdit = (condo) => {
         setEditingCondominio(condo);
-        // Preenche o formulário com os dados do condomínio, incluindo o admCod
         setFormData({
             conNome: condo.conNome,
             conLogradouro: condo.conLogradouro,
@@ -50,21 +52,15 @@ const CondominiosPage = () => {
         setIsModalOpen(true);
     };
 
-    const handleCloseModal = () => {
-        setIsModalOpen(false);
-        setEditingCondominio(null);
-    };
+    const handleCloseModal = () => { setIsModalOpen(false); setEditingCondominio(null); };
 
     const handleChange = (e) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
     };
 
-    // Função única para salvar (cria ou atualiza)
     const handleSubmit = async (e) => {
         e.preventDefault();
-        
-        // Monta o payload conforme a API espera (com o objeto 'administradora')
         const payload = {
             conNome: formData.conNome,
             conLogradouro: formData.conLogradouro,
@@ -72,21 +68,18 @@ const CondominiosPage = () => {
             conTipologia: formData.conTipologia,
             administradora: { admCod: parseInt(formData.admCod) }
         };
-
         try {
             if (editingCondominio) {
-                // Modo de Edição
                 await updateCondominio(editingCondominio.conCod, payload);
                 alert('Condomínio atualizado com sucesso!');
             } else {
-                // Modo de Criação
                 await createCondominio(payload);
                 alert('Condomínio criado com sucesso!');
             }
             handleCloseModal();
-            fetchCondominios(); // Recarrega a lista
+            fetchData();
         } catch (error) {
-            alert(`Erro: ${error.response?.data?.message || 'Não foi possível salvar os dados.'}`);
+            alert(`Erro: ${error.response?.data?.message || 'Não foi possível salvar.'}`);
         }
     };
     
@@ -108,7 +101,7 @@ const CondominiosPage = () => {
         }
     };
 
-    return (
+   return (
         <div className="page-container">
             <div className="page-header">
                 <h1>Gestão de Condomínios</h1>
@@ -116,7 +109,7 @@ const CondominiosPage = () => {
             </div>
 
             <Modal isOpen={isModalOpen} onClose={handleCloseModal} title={editingCondominio ? 'Editar Condomínio' : 'Novo Condomínio'}>
-                <form onSubmit={handleSubmit} className="modal-form">
+                <form onSubmit={handleSubmit} className="modal-form" key={editingCondominio ? editingCondominio.conCod : 'new-condo'}>
                     <div className="form-group">
                         <label>Nome do Condomínio</label>
                         <input name="conNome" value={formData.conNome || ''} onChange={handleChange} required />
@@ -130,8 +123,14 @@ const CondominiosPage = () => {
                         <input name="conNumero" value={formData.conNumero || ''} onChange={handleChange} required />
                     </div>
                     <div className="form-group">
-                        <label>Código da Administradora</label>
-                        <input name="admCod" type="number" value={formData.admCod || ''} onChange={handleChange} required />
+                        <label>Administradora</label>
+                        {/* Campo de código da adm foi trocado por um dropdown */}
+                        <select name="admCod" value={formData.admCod || ''} onChange={handleChange} required>
+                            <option value="">Selecione uma administradora</option>
+                            {listaAdmin.map(admin => (
+                                <option key={admin.admCod} value={admin.admCod}>{admin.dadosEmpresa.pesNome}</option>
+                            ))}
+                        </select>
                     </div>
                     <div className="form-group">
                         <label>Tipologia</label>
@@ -153,7 +152,7 @@ const CondominiosPage = () => {
                     <table>
                         <thead>
                             <tr>
-                                <th>ID</th>
+                                {/* CORREÇÃO: COLUNA DE ID REMOVIDA */}
                                 <th>Nome</th>
                                 <th>Endereço</th>
                                 <th>Tipologia</th>
@@ -164,7 +163,7 @@ const CondominiosPage = () => {
                         <tbody>
                             {condominios.map(condo => (
                                 <tr key={condo.conCod}>
-                                    <td>{condo.conCod}</td>
+                                    {/* CORREÇÃO: CÉLULA DE ID REMOVIDA */}
                                     <td>{condo.conNome}</td>
                                     <td>{`${condo.conLogradouro}, ${condo.conNumero}`}</td>
                                     <td>{condo.conTipologia}</td>

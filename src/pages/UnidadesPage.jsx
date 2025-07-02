@@ -1,32 +1,39 @@
 import React, { useState, useEffect } from 'react';
 import { getUnidades, createUnidade, updateUnidade, ativarUnidade, inativarUnidade } from '../api/unidadeService';
+import { getCondominios } from '../api/condominioService'; // Importar serviço para o dropdown
 import Modal from '../components/ui/Modal';
 import { formatStatus } from '../utils/formatters';
 import './Page.css';
 
 const UnidadesPage = () => {
     const [unidades, setUnidades] = useState([]);
+    const [condominios, setCondominios] = useState([]); // Novo estado para a lista de condomínios
     const [isLoading, setIsLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
     
     const [editingUnidade, setEditingUnidade] = useState(null);
     const [formData, setFormData] = useState({});
 
-    const fetchUnidades = async () => {
+    // Função agora busca unidades E condomínios
+    const fetchData = async () => {
         setIsLoading(true);
         try {
-            const response = await getUnidades();
-            setUnidades(response.data);
+            const [unidadesRes, condominiosRes] = await Promise.all([
+                getUnidades(false), // Pega ativas e inativas
+                getCondominios(true) // Pega apenas condomínios ativos para o dropdown
+            ]);
+            setUnidades(unidadesRes.data);
+            setCondominios(condominiosRes.data);
         } catch (error) {
-            console.error("Erro ao buscar unidades:", error);
-            alert("Não foi possível carregar os dados das unidades.");
+            console.error("Erro ao buscar dados:", error);
+            alert("Não foi possível carregar os dados da página.");
         } finally {
             setIsLoading(false);
         }
     };
 
     useEffect(() => {
-        fetchUnidades();
+        fetchData();
     }, []);
 
     const handleAddNew = () => {
@@ -60,7 +67,9 @@ const UnidadesPage = () => {
         e.preventDefault();
         
         const payload = {
-            ...formData,
+            uniNumero: formData.uniNumero,
+            uniStatusOcupacao: formData.uniStatusOcupacao,
+            uniValorTaxaCondominio: formData.uniValorTaxaCondominio,
             condominio: { conCod: parseInt(formData.conCod) }
         };
 
@@ -73,7 +82,7 @@ const UnidadesPage = () => {
                 alert('Unidade criada com sucesso!');
             }
             handleCloseModal();
-            fetchUnidades();
+            fetchData();
         } catch (error) {
             alert(`Erro: ${error.response?.data?.message || 'Não foi possível salvar os dados.'}`);
         }
@@ -89,7 +98,7 @@ const UnidadesPage = () => {
                     await ativarUnidade(unidade.uniCod);
                 }
                 alert(`Unidade foi ${action}da com sucesso!`);
-                fetchUnidades();
+                fetchData();
             } catch (error) {
                 alert(`Erro ao ${action} a unidade: ${error.response?.data?.message || ''}`);
             }
@@ -104,14 +113,19 @@ const UnidadesPage = () => {
             </div>
 
             <Modal isOpen={isModalOpen} onClose={handleCloseModal} title={editingUnidade ? 'Editar Unidade' : 'Nova Unidade'}>
-                <form onSubmit={handleSubmit} className="modal-form">
+                <form onSubmit={handleSubmit} className="modal-form" key={editingUnidade ? editingUnidade.uniCod : 'new-unit'}>
+                    <div className="form-group">
+                        <label>Condomínio</label>
+                        <select name="conCod" value={formData.conCod || ''} onChange={handleChange} required disabled={!!editingUnidade}>
+                             <option value="">Selecione um condomínio</option>
+                             {condominios.map(condo => (
+                                 <option key={condo.conCod} value={condo.conCod}>{condo.conNome}</option>
+                             ))}
+                        </select>
+                    </div>
                     <div className="form-group">
                         <label>Número da Unidade</label>
                         <input name="uniNumero" value={formData.uniNumero || ''} onChange={handleChange} required />
-                    </div>
-                    <div className="form-group">
-                        <label>Código do Condomínio</label>
-                        <input name="conCod" type="number" value={formData.conCod || ''} onChange={handleChange} required disabled={!!editingUnidade} />
                     </div>
                     <div className="form-group">
                         <label>Valor da Taxa de Condomínio</label>
@@ -138,24 +152,22 @@ const UnidadesPage = () => {
                     <table>
                         <thead>
                             <tr>
-                                <th>ID</th>
                                 <th>Número</th>
                                 <th>Condomínio</th>
                                 <th>Taxa (R$)</th>
+                                <th>Ocupação</th>
                                 <th>Status</th>
-                                <th>Ativa</th>
                                 <th>Ações</th>
                             </tr>
                         </thead>
                         <tbody>
                             {unidades.map(unidade => (
                                 <tr key={unidade.uniCod}>
-                                    <td>{unidade.uniCod}</td>
                                     <td>{unidade.uniNumero}</td>
-                                    <td>{unidade.condominio.conNome} (ID: {unidade.condominio.conCod})</td>
+                                    <td>{unidade.condominio.conNome}</td>
                                     <td>{unidade.uniValorTaxaCondominio.toFixed(2)}</td>
                                     <td>{formatStatus(unidade.uniStatusOcupacao)}</td>
-                                    <td>{unidade.uniAtiva ? 'Sim' : 'Não'}</td>
+                                    <td>{unidade.uniAtiva ? 'Ativo' : 'Inativo'}</td>
                                     <td className="actions-cell">
                                         <button onClick={() => handleEdit(unidade)} className="btn-edit">Editar</button>
                                         <button onClick={() => handleToggleAtivo(unidade)} className={unidade.uniAtiva ? "btn-inactive" : "btn-active"}>
