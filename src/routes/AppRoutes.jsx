@@ -37,6 +37,7 @@ const AppRoutes = () => {
                     <Route path="/manutencao" element={<ManutencaoPage />} />
                     <Route path="/assembleias" element={<AssembleiasPage />} />
                     <Route path="/documentos" element={<DocumentosPage />} />
+                    <Route path="/administradoras" element={<AdministradorasPage />} />
                 </Route>
 
                 {/* Rota para páginas não encontradas */}
