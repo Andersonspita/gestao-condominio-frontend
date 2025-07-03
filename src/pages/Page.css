@@ -194,3 +194,50 @@ tbody tr:hover {
     color: #666;
     font-weight: 500;
 }
+
+.comunicados-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.comunicado-card {
+    background: #ffffff;
+    padding: 1.5rem;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    border-left: 5px solid #3498db;
+}
+
+.comunicado-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 1rem;
+    margin-bottom: 1rem;
+}
+
+.comunicado-header h3 {
+    margin: 0;
+}
+
+.comunicado-meta {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    font-size: 0.85rem;
+    color: #777;
+}
+
+.comunicado-body {
+    line-height: 1.6;
+    white-space: pre-wrap; /* Preserva quebras de linha e espaços */
+}
+
+.comunicado-actions {
+    margin-top: 1.5rem;
+    display: flex;
+    gap: 1rem;
+    justify-content: flex-end;
+}
