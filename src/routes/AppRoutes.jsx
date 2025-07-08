@@ -7,7 +7,7 @@ import DashboardPage from '../pages/DashboardPage';
 import PessoasPage from '../pages/PessoasPage';
 import CondominiosPage from '../pages/CondominiosPage';
 import UnidadesPage from '../pages/UnidadesPage';
-import AdministradorasPage from '../pages/AdministradorasPage'; // Sua nova página
+import AdministradorasPage from '../pages/AdministradorasPage'; 
 import FinanceiroPage from '../pages/financeiro/FinanceiroPage';
 import ComunicadosPage from '../pages/comunicacoes/ComunicadosPage';
 import ReservasPage from '../pages/reservas/ReservasPage';

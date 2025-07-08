@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../hooks/useAuth';
 
 // Serviços de API
@@ -37,58 +37,58 @@ const PessoasPage = () => {
     const hasManagementRole = user?.roles.some(role => !role.startsWith('ROLE_MORADOR_'));
 
     // --- BUSCA E PROCESSAMENTO DE DADOS ---
-    useEffect(() => {
-        const fetchData = async () => {
-            setIsLoading(true);
-            try {
-                const [pessoasRes, condominiosRes, unidadesRes, papeisRes, moradoresRes] = await Promise.all([
-                    getPessoas(),
-                    getCondominios(false),
-                    getUnidades(false),
-                    getAllUsuariosCondominio(),
-                    getMoradores()
-                ]);
+    const fetchData = useCallback(async () => {
+        setIsLoading(true);
+        try {
+            const [pessoasRes, condominiosRes, unidadesRes, papeisRes, moradoresRes] = await Promise.all([
+                getPessoas(),
+                getCondominios(false),
+                getUnidades(false),
+                getAllUsuariosCondominio(),
+                getMoradores()
+            ]);
 
-                const papeisMap = {};
-                papeisRes.data.forEach(papel => {
-                    const pesCod = papel.pessoa.pesCod;
-                    if (!papeisMap[pesCod]) papeisMap[pesCod] = [];
-                    papeisMap[pesCod].push({ tipo: 'papel', ...papel });
-                });
-                moradoresRes.data.forEach(morador => {
-                    const pesCod = morador.pessoa.pesCod;
-                    if (!papeisMap[pesCod]) papeisMap[pesCod] = [];
-                    papeisMap[pesCod].push({ tipo: 'morador', ...morador });
-                });
+            const papeisMap = {};
+            papeisRes.data.forEach(papel => {
+                const pesCod = papel.pessoa.pesCod;
+                if (!papeisMap[pesCod]) papeisMap[pesCod] = [];
+                papeisMap[pesCod].push({ tipo: 'papel', ...papel });
+            });
+            moradoresRes.data.forEach(morador => {
+                const pesCod = morador.pessoa.pesCod;
+                if (!papeisMap[pesCod]) papeisMap[pesCod] = [];
+                papeisMap[pesCod].push({ tipo: 'morador', ...morador });
+            });
 
-                let pessoasComPapeis = pessoasRes.data.map(pessoa => {
-                    const todosOsPapeis = papeisMap[pessoa.pesCod] || [];
-                    const roleNames = [
+            let pessoasComPapeis = pessoasRes.data.map(pessoa => {
+                const todosOsPapeis = papeisMap[pessoa.pesCod] || [];
+                const roleNames = [
                         ...(pessoa.pesIsGlobalAdmin ? ['GLOBAL_ADMIN'] : []),
-                        ...todosOsPapeis.map(p => p.tipo === 'morador' ? 'MORADOR' : p.uscPapel)
+                        ...todosOsPapeis.map(p => p.tipo === 'morador' ? 'MORADOR' : p.uscPapel) // <-- Correção aqui
                     ];
-                    return { ...pessoa, papeis: todosOsPapeis, roleNames: [...new Set(roleNames)] };
-                });
+                return { ...pessoa, papeis: todosOsPapeis, roleNames: [...new Set(roleNames)] };
+            });
 
-                if (!hasManagementRole) {
-                    pessoasComPapeis = pessoasComPapeis.filter(p => p.pesCod === user.pesCod);
-                }
-
-                setPessoas(pessoasComPapeis);
-                setListaCondominios(condominiosRes.data);
-                setListaUnidades(unidadesRes.data);
-            } catch (error) {
-                console.error("Erro ao buscar dados:", error);
-                alert("Não foi possível carregar os dados da página.");
-            } finally {
-                setIsLoading(false);
+            if (!hasManagementRole) {
+                pessoasComPapeis = pessoasComPapeis.filter(p => p.pesCod === user.pesCod);
             }
-        };
 
+            setPessoas(pessoasComPapeis);
+            setListaCondominios(condominiosRes.data);
+            setListaUnidades(unidadesRes.data);
+        } catch (error) {
+            console.error("Erro ao buscar dados:", error);
+            alert("Não foi possível carregar os dados da página.");
+        } finally {
+            setIsLoading(false);
+        }
+    }, [user, hasManagementRole]);
+
+    useEffect(() => {
         if (user) {
             fetchData();
         }
-    }, [user, hasManagementRole]);
+    }, [user, fetchData]);
 
     useEffect(() => {
         const condominioSelecionadoId = formData.newRoleCondominioId || formData.condominioId;
@@ -127,38 +127,50 @@ const PessoasPage = () => {
     
     const handleChange = (e) => {
         const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
+        if (name === "pesCpfCnpj") {
+            // Remove todos os caracteres que não são dígitos
+            const cleanedValue = value.replace(/\D/g, '');
+            setFormData(prev => ({ ...prev, [name]: cleanedValue }));
+        } else {
+            setFormData(prev => ({ ...prev, [name]: value }));
+        }
     };
 
     const handleSubmitDadosBasicos = async (e) => {
         e.preventDefault();
         try {
+            const dataToSend = { ...formData };
+            // Ensure pesCpfCnpj is clean before sending for new person
+            if (!editingPessoa && dataToSend.pesCpfCnpj) {
+                dataToSend.pesCpfCnpj = dataToSend.pesCpfCnpj.replace(/\D/g, '');
+            }
+
             if (editingPessoa) {
                 await updatePessoa(editingPessoa.pesCod, {
-                    pesNome: formData.pesNome,
-                    pesEmail: formData.pesEmail
+                    pesNome: dataToSend.pesNome,
+                    pesEmail: dataToSend.pesEmail
                 });
                 alert('Pessoa atualizada com sucesso!');
             } else {
-                const pessoaResponse = await createPessoa(formData);
+                const pessoaResponse = await createPessoa(dataToSend);
                 const novaPessoa = pessoaResponse.data;
                 let roleMessage = '';
 
-                if (formData.roleType && formData.roleType !== 'NONE') {
-                    if (formData.roleType === 'MORADOR') {
+                if (dataToSend.roleType && dataToSend.roleType !== 'NONE') {
+                    if (dataToSend.roleType === 'MORADOR') {
                         await createMorador({
                             pessoa: { pesCod: novaPessoa.pesCod },
-                            unidade: { uniCod: parseInt(formData.unidadeId) },
-                            morTipoRelacionamento: formData.morTipoRelacionamento || 'PROPRIETARIO'
+                            unidade: { uniCod: parseInt(dataToSend.unidadeId) },
+                            morTipoRelacionamento: dataToSend.morTipoRelacionamento || 'PROPRIETARIO'
                         });
                         roleMessage = ' e associada como morador(a).';
                     } else {
                         await createUsuarioCondominio({
                             pessoa: { pesCod: novaPessoa.pesCod },
-                            condominio: { conCod: parseInt(formData.condominioId) },
-                            uscPapel: formData.roleType
+                            condominio: { conCod: parseInt(dataToSend.condominioId) },
+                            uscPapel: dataToSend.roleType
                         });
-                        roleMessage = ` e atribuído o papel de ${formatStatus(formData.roleType)}.`;
+                        roleMessage = ` e atribuído o papel de ${formatStatus(dataToSend.roleType)}.`;
                     }
                 }
                 alert(`Pessoa criada com sucesso${roleMessage}`);
