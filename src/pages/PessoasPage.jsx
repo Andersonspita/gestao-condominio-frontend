@@ -3,8 +3,8 @@ import { useAuth } from '../hooks/useAuth';
 
 // Serviços de API
 import { getPessoas, createPessoa, updatePessoa, inativarPessoa, ativarPessoa } from '../api/pessoaService';
-import { createMorador, getMoradores } from '../api/moradorService';
-import { createUsuarioCondominio, getAllUsuariosCondominio } from '../api/usuarioCondominioService';
+import { createMorador, getMoradores, deleteMorador } from '../api/moradorService';
+import { createUsuarioCondominio, getAllUsuariosCondominio, deleteUsuarioCondominio } from '../api/usuarioCondominioService';
 import { getCondominios } from '../api/condominioService';
 import { getUnidades } from '../api/unidadeService';
 
@@ -63,9 +63,9 @@ const PessoasPage = () => {
             let pessoasComPapeis = pessoasRes.data.map(pessoa => {
                 const todosOsPapeis = papeisMap[pessoa.pesCod] || [];
                 const roleNames = [
-                        ...(pessoa.pesIsGlobalAdmin ? ['GLOBAL_ADMIN'] : []),
-                        ...todosOsPapeis.map(p => p.tipo === 'morador' ? 'MORADOR' : p.uscPapel) // <-- Correção aqui
-                    ];
+                    ...(pessoa.pesIsGlobalAdmin ? ['GLOBAL_ADMIN'] : []),
+                    ...todosOsPapeis.map(p => p.tipo === 'morador' ? 'MORADOR' : p.uscPapel)
+                ];
                 return { ...pessoa, papeis: todosOsPapeis, roleNames: [...new Set(roleNames)] };
             });
 
@@ -245,6 +245,28 @@ const PessoasPage = () => {
         }
     };
 
+    // Função handleRemoveRole movida para o escopo correto
+    const handleRemoveRole = async (papel) => {
+        if (!window.confirm(`Tem certeza que deseja remover este papel (${formatStatus(papel.uscPapel || papel.morTipoRelacionamento)})?`)) {
+            return;
+        }
+
+        try {
+            if (papel.tipo === 'morador') {
+                await deleteMorador(papel.morCod);
+                alert('Vínculo de morador removido com sucesso!');
+            } else if (papel.tipo === 'papel') {
+                await deleteUsuarioCondominio(papel.uscCod);
+                alert('Papel de usuário removido com sucesso!');
+            }
+            fetchData(); // Atualiza a lista de pessoas/papéis
+            handleCloseInfoModal(); // Opcional: fechar o modal após a remoção
+        } catch (error) {
+            alert(`Erro ao remover papel: ${error.response?.data?.message || 'Ocorreu um erro ao remover o papel.'}`);
+        }
+    };
+
+
     return (
         <div className="page-container">
             <div className="page-header">
@@ -277,7 +299,7 @@ const PessoasPage = () => {
                             {papeisUsuario.length > 0 ? papeisUsuario.map((papel, index) => (
                                 <div key={index} className="role-item">
                                     {papel.tipo === 'morador' ? (<span><strong>Morador</strong> ({formatStatus(papel.morTipoRelacionamento)}) na Unid. {papel.unidade.uniNumero}</span>) : (<span><strong>{formatStatus(papel.uscPapel)}</strong> no Cond. {papel.condominio.conNome}</span>)}
-                                    <button type="button" className="btn-remove-role" title="Remover Papel (A implementar)">&times;</button>
+                                    <button type="button" className="btn-remove-role" title="Remover Papel" onClick={() => handleRemoveRole(papel)}>&times;</button>
                                 </div>
                             )) : <p>Esta pessoa não possui papéis atribuídos.</p>}
                         </div>
